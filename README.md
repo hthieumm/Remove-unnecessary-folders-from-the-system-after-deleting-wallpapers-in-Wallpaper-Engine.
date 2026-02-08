@@ -1,0 +1,1 @@
+# Remove-unnecessary-folders-from-the-system-after-deleting-wallpapers-in-Wallpaper-Engine.
