@@ -1,32 +1,32 @@
-# 1. Cấu hình đường dẫn (Hãy kiểm tra kỹ các đường dẫn này)
+# 1. Configure paths (Please carefully verify these paths)
 $acfPath = "D:\SteamLibrary\steamapps\workshop\appworkshop_431960.acf"
 $workshopContentPath = "D:\SteamLibrary\steamapps\workshop\content\431960"
 
 if (-not (Test-Path $acfPath)) {
-    Write-Host "[!] Khong tim thay file .acf tai: $acfPath" -ForegroundColor Red
+    Write-Host "[!] Cannot find .acf file at: $acfPath" -ForegroundColor Red
     return
 }
 
-# 2. Đọc và phân tích file .acf
+# 2. Read and parse the .acf file
 $content = Get-Content $acfPath -Raw
 
-# Lấy ID từ WorkshopItemsInstalled
+# Get IDs from WorkshopItemsInstalled
 $installedMatch = [regex]::Match($content, '"WorkshopItemsInstalled"\s*\{([\s\S]*?)\n\t\}')
 $installedIds = [regex]::Matches($installedMatch.Value, '"(\d+)"\s*\{') | ForEach-Object { $_.Groups[1].Value }
 
-# Lọc ID hợp lệ (có trường "subscribedby")
+# Filter valid IDs (those containing the "subscribedby" field)
 $detailsIds = [regex]::Matches($content, '"(\d+)"\s*\{[^}]*?"subscribedby"') | ForEach-Object { $_.Groups[1].Value }
 
-# Tìm các ID "mồ côi" (Có trong Installed nhưng không có trong Details)
+# Find "orphan" IDs (present in Installed but missing in Details)
 $idsToDelete = $installedIds | Where-Object { $_ -notin $detailsIds }
 
 if ($idsToDelete.Count -eq 0) {
-    Write-Host "[-] Chuc mung! Khong co thu muc mo coi nao can xoa." -ForegroundColor Green
+    Write-Host "[-] Congratulations! No orphan folders found to delete." -ForegroundColor Green
     return
 }
 
-# 3. Liệt kê danh sách các đường dẫn sẽ bị xóa
-Write-Host "--- DANH SACH THU MUC MO COI TIM THAY ---" -ForegroundColor Yellow
+# 3. List directories that will be deleted
+Write-Host "--- LIST OF ORPHAN DIRECTORIES FOUND ---" -ForegroundColor Yellow
 $foundPaths = @()
 foreach ($id in $idsToDelete) {
     $fullPath = Join-Path $workshopContentPath $id
@@ -37,29 +37,29 @@ foreach ($id in $idsToDelete) {
 }
 
 if ($foundPaths.Count -eq 0) {
-    Write-Host "[-] Cac ID khac biet ton tai trong file .acf nhung khong tim thay thu muc vat ly tren o dia." -ForegroundColor Gray
+    Write-Host "[-] The mismatched IDs exist in the .acf file but no physical folders were found on disk." -ForegroundColor Gray
     return
 }
 
-Write-Host ("`nTong cong: " + $foundPaths.Count + " thu muc.") -ForegroundColor Cyan
+Write-Host ("`nTotal: " + $foundPaths.Count + " folders.") -ForegroundColor Cyan
 
-# 4. Hiển thị câu hỏi xác nhận
-$confirmation = Read-Host "Ban co muon xoa tat ca cac thu muc tren khong? (An 'y' de xoa, 'n' de huy)"
+# 4. Show confirmation prompt
+$confirmation = Read-Host "Do you want to delete all these folders? (Press 'y' to delete, 'n' to cancel)"
 
 if ($confirmation -eq 'y') {
-    Write-Host "`n--- DANG TIEN HANH XOA ---" -ForegroundColor Cyan
+    Write-Host "`n--- DELETION IN PROGRESS ---" -ForegroundColor Cyan
     foreach ($path in $foundPaths) {
         try {
             Remove-Item -Path $path -Recurse -Force -ErrorAction Stop
-            Write-Host "[THANH CONG] Da xoa: $path" -ForegroundColor Green
+            Write-Host "[SUCCESS] Deleted: $path" -ForegroundColor Green
         } catch {
-            Write-Host "[LOI] Khong the xoa: $path (Co the file dang mo)" -ForegroundColor Red
+            Write-Host "[ERROR] Unable to delete: $path (The files may be in use)" -ForegroundColor Red
         }
     }
-    Write-Host "`n[!] Da hoan tat qua trinh don dep." -ForegroundColor Cyan
+    Write-Host "`n[!] Cleanup process completed." -ForegroundColor Cyan
 } else {
-    Write-Host "`n[X] Da huy lenh xoa. Khong co file nao bi thay doi." -ForegroundColor Yellow
+    Write-Host "`n[X] Deletion cancelled. No files were modified." -ForegroundColor Yellow
 }
 
-# Dung man hinh de xem ket qua
-Read-Host "`nAn Enter de thoat..."
+# Pause screen to view results
+Read-Host "`nPress Enter to exit..."
